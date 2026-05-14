@@ -54,7 +54,7 @@ class TempApp(ctk.CTk):
 
     def build_layout(self):
         # 1. TOP TOOLBAR
-        self.topbar = ctk.CTkFrame(self, fg_color=self.bg_topbar, corner_radius=0, height=55)
+        self.topbar = ctk.CTkFrame(self, fg_color=self.bg_topbar, corner_radius=0, height=50)
         self.topbar.pack(side="top", fill="x")
         self.topbar.pack_propagate(False)
 
@@ -139,6 +139,19 @@ class TempApp(ctk.CTk):
         if self.current_tab == "settings":
             ctk.CTkButton(self.actions_frame, text="Add Folder", corner_radius=0, width=120, 
                           fg_color=self.accent_blue, command=self.action_add_folder_dialog).pack(side="left", padx=5, pady=10)
+        
+            is_installed = self.core.is_context_menu_installed()
+            
+            ctk.CTkButton(
+                self.actions_frame, 
+                text="Installed!" if is_installed else "Install Context Menu", 
+                corner_radius=0, width=120, height=32,
+                fg_color="#3e7d3e" if is_installed else "#444", 
+                text_color_disabled="white", # Biały tekst, gdy przycisk jest nieaktywny
+                border_width=0, 
+                state="disabled" if is_installed else "normal",
+                command=self.action_install_menu
+            ).pack(side="left", padx=5, pady=10)
             return
 
         tag_values = ["{0}", "{1}", "{2}", "{4}", "{12}"]
@@ -151,10 +164,12 @@ class TempApp(ctk.CTk):
             ctk.CTkButton(self.actions_frame, text="Quarantine", corner_radius=0, width=100, fg_color="#444", command=self.action_quarantine_selected).pack(side="left", padx=5, pady=10)
             ctk.CTkButton(self.actions_frame, text="Delete", corner_radius=0, width=80, fg_color=self.danger_red, command=self.action_delete_selected).pack(side="left", padx=5, pady=10)
         elif self.current_tab == "quarantine":
-            ctk.CTkButton(self.actions_frame, text="Restore", corner_radius=0, width=100, fg_color="#00C851", hover_color="#007E33", command=self.action_restore_selected).pack(side="left", padx=5, pady=10)
+            ctk.CTkButton(self.actions_frame, text="Restore", corner_radius=0, width=100, fg_color="#3e7d3e", hover_color="#007E33", command=self.action_restore_selected).pack(side="left", padx=5, pady=10)
             ctk.CTkButton(self.actions_frame, text="Delete", corner_radius=0, width=100, fg_color=self.danger_red, command=self.action_delete_selected).pack(side="left", padx=5, pady=10)
 
     def refresh_list(self):
+        self.core.config = self.core.load_config()
+
         for widget in self.list_container.winfo_children():
             widget.destroy()
 
@@ -223,7 +238,7 @@ class TempApp(ctk.CTk):
             txt, col, det = "New", self.accent_blue, f"{file_info.get('size_mb', '?')} MB"
         elif self.current_tab == "managed":
             txt = "Expired" if file_info['is_expired'] else f"{file_info['days_left']} days left"
-            col = "#ff4444" if file_info['is_expired'] else "#00C851"
+            col = "#ff4444" if file_info['is_expired'] else "#3e7d3e"
             det = str(Path(file_info['full_path']).parent)
         else:
             txt, col, det = "Hidden", self.text_dim, f"{file_info.get('size_mb', '?')} MB"
@@ -307,3 +322,12 @@ class TempApp(ctk.CTk):
         if hasattr(self, 'tray_icon'): self.tray_icon.stop()
         self.destroy()
         os._exit(0)
+
+    def action_install_menu(self):
+        success = self.core.install_context_menu()
+        if success:
+            self.build_action_buttons()
+            # Zmiana nazwy przycisku na chwilę, żeby potwierdzić sukces
+            for widget in self.actions_frame.winfo_children():
+                if isinstance(widget, ctk.CTkButton) and widget.cget("text") == "Install Context Menu":
+                    widget.configure(text="Installed!", fg_color="#3e7d3e")

@@ -1,3 +1,5 @@
+import winreg
+import sys
 import os
 import re
 import json
@@ -41,6 +43,7 @@ class TempCore:
 
     def scan_for_tagged_files(self):
         """Przeszukuje foldery w poszukiwaniu plików z <t#>."""
+        self.config = self.load_config()
         found_files = []
         for folder in self.config["monitored_folders"]:
             path = Path(folder)
@@ -65,6 +68,7 @@ class TempCore:
         return found_files
 
     def get_new_files(self):
+        self.config = self.load_config()
         new_files = []
         downloads = Path.home() / "Downloads"
         
@@ -157,3 +161,56 @@ class TempCore:
             self.save_config()
             return True
         return False
+    
+    def is_context_menu_installed(self):
+        """Sprawdza, czy menu kontekstowe jest już w Rejestrze Windows."""
+        try:
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Classes\*\shell\TempApp"):
+                return True
+        except FileNotFoundError:
+            return False
+
+    def install_context_menu(self):
+        """Dodaje kaskadowe menu do prawego przycisku myszy w Windows."""
+        try:
+            if getattr(sys, 'frozen', False):
+                exe_path = f'"{sys.executable}"'
+            else:
+                python_exe = sys.executable.replace("python.exe", "pythonw.exe")
+                script_path = os.path.abspath(sys.argv[0])
+                exe_path = f'"{python_exe}" "{script_path}"'
+
+            # NOWE: Ścieżka do Twojej ikony .ico
+            icon_path = Path(__file__).parent.parent / "assets" / "logo.ico"
+            # Jeśli ikona istnieje, użyj jej. Jeśli nie, użyj domyślnej ikony Pythona/exe
+            icon_str = str(icon_path) if icon_path.exists() else exe_path.replace('"', '')
+
+            key_path = r"Software\Classes\*\shell\TempApp"
+            
+            with winreg.CreateKey(winreg.HKEY_CURRENT_USER, key_path) as key:
+                winreg.SetValueEx(key, "MUIVerb", 0, winreg.REG_SZ, "Temp Tag")
+                winreg.SetValueEx(key, "SubCommands", 0, winreg.REG_SZ, "")
+                # ZMIANA: Przypisanie nowej ikony
+                winreg.SetValueEx(key, "Icon", 0, winreg.REG_SZ, icon_str) 
+
+            tags = {
+                "tag1": ("1 Week {1}", "{1}"),
+                "tag2": ("2 Weeks {2}", "{2}"),
+                "tag4": ("1 Month {4}", "{4}"),
+                "tag0": ("Remove Tag {0}", "{0}")
+            }
+
+            for cmd_name, (label, tag) in tags.items():
+                cmd_key_path = fr"{key_path}\shell\{cmd_name}"
+                with winreg.CreateKey(winreg.HKEY_CURRENT_USER, cmd_key_path) as cmd_key:
+                    winreg.SetValueEx(cmd_key, "", 0, winreg.REG_SZ, label)
+                
+                command_path = fr"{cmd_key_path}\command"
+                with winreg.CreateKey(winreg.HKEY_CURRENT_USER, command_path) as command_key:
+                    command = f'{exe_path} --tag "{tag}" "%1"'
+                    winreg.SetValueEx(command_key, "", 0, winreg.REG_SZ, command)
+            
+            return True
+        except Exception as e:
+            print(f"Błąd rejestru: {e}")
+            return False
