@@ -4,7 +4,7 @@ import time
 import shutil
 import threading
 from pathlib import Path
-
+from tkinter import filedialog
 import customtkinter as ctk
 import pystray
 from PIL import Image, ImageDraw
@@ -70,6 +70,7 @@ class TempApp(ctk.CTk):
         self.btn_inbox = self.create_tab_btn("Inbox", "inbox")
         self.btn_managed = self.create_tab_btn("Managed ({#})", "managed")
         self.btn_quarantine = self.create_tab_btn("Quarantine", "quarantine")
+        self.btn_settings = self.create_tab_btn("Settings", "settings")
 
         self.actions_frame = ctk.CTkFrame(self.topbar, fg_color="transparent")
         self.actions_frame.pack(side="right", fill="y", padx=10)
@@ -111,15 +112,12 @@ class TempApp(ctk.CTk):
         self.selected_files.clear()
         self.select_all_var.set(0)
         
-        for btn in [self.btn_inbox, self.btn_managed, self.btn_quarantine]:
-            btn.configure(fg_color="transparent", border_width=1)
-
-        if tab_name == "inbox":
-            self.btn_inbox.configure(fg_color=self.accent_blue, border_width=0)
-        elif tab_name == "managed":
-            self.btn_managed.configure(fg_color=self.accent_blue, border_width=0)
-        elif tab_name == "quarantine":
-            self.btn_quarantine.configure(fg_color=self.accent_blue, border_width=0)
+        for name, btn in [("inbox", self.btn_inbox), ("managed", self.btn_managed), 
+                          ("quarantine", self.btn_quarantine), ("settings", self.btn_settings)]:
+            if tab_name == name:
+                btn.configure(fg_color=self.accent_blue, border_width=0)
+            else:
+                btn.configure(fg_color="transparent", border_width=1)
 
         self.build_action_buttons()
         self.refresh_list()
@@ -128,35 +126,32 @@ class TempApp(ctk.CTk):
         for widget in self.actions_frame.winfo_children():
             widget.destroy()
 
-        if self.current_tab == "inbox":
+        # Wspólne wartości dla tagów (teraz z opcją {0})
+        tag_values = ["{0}", "{1}", "{2}", "{4}", "{12}"]
+
+        if self.current_tab in ["inbox", "managed"]:
+            # Dropdown do wyboru tagu
             self.tag_var = ctk.StringVar(value="{1}")
             tag_menu = ctk.CTkOptionMenu(
-                self.actions_frame, values=["{1}", "{2}", "{4}", "{12}"], variable=self.tag_var,
+                self.actions_frame, values=tag_values, variable=self.tag_var,
                 width=80, corner_radius=0, fg_color="#333", button_color="#444"
             )
             tag_menu.pack(side="left", padx=5, pady=10)
             
-            ctk.CTkButton(self.actions_frame, text="Apply Tag", corner_radius=0, width=100, fg_color=self.accent_blue, command=self.action_apply_tag).pack(side="left", padx=5, pady=10)
-            ctk.CTkButton(self.actions_frame, text="Quarantine", corner_radius=0, width=100, fg_color="#444", command=self.action_quarantine_selected).pack(side="left", padx=5, pady=10)
-            ctk.CTkButton(self.actions_frame, text="Delete", corner_radius=0, width=80, fg_color=self.danger_red, command=self.action_delete_selected).pack(side="left", padx=5, pady=10)
+            # Przycisk zmieniający tag (lub nadający nowy)
+            btn_text = "Apply Tag" if self.current_tab == "inbox" else "Change Tag"
+            ctk.CTkButton(
+                self.actions_frame, text=btn_text, corner_radius=0, width=100, 
+                fg_color=self.accent_blue, command=self.action_update_tags
+            ).pack(side="left", padx=5, pady=10)
 
-        elif self.current_tab == "managed":
+            # Pozostałe przyciski
             ctk.CTkButton(self.actions_frame, text="Quarantine", corner_radius=0, width=100, fg_color="#444", command=self.action_quarantine_selected).pack(side="left", padx=5, pady=10)
             ctk.CTkButton(self.actions_frame, text="Delete", corner_radius=0, width=80, fg_color=self.danger_red, command=self.action_delete_selected).pack(side="left", padx=5, pady=10)
 
         elif self.current_tab == "quarantine":
             ctk.CTkButton(self.actions_frame, text="Restore", corner_radius=0, width=100, fg_color="#00C851", hover_color="#007E33", command=self.action_restore_selected).pack(side="left", padx=5, pady=10)
             ctk.CTkButton(self.actions_frame, text="Delete", corner_radius=0, width=100, fg_color=self.danger_red, command=self.action_delete_selected).pack(side="left", padx=5, pady=10)
-
-        elif self.current_tab == "managed":
-            # NOWY PRZYCISK: Remove Tag
-            ctk.CTkButton(
-                self.actions_frame, text="Remove Tag", corner_radius=0, width=100, 
-                fg_color=self.accent_blue, command=self.action_remove_tags
-            ).pack(side="left", padx=5, pady=10)
-            
-            ctk.CTkButton(self.actions_frame, text="Quarantine", corner_radius=0, width=100, fg_color="#444", command=self.action_quarantine_selected).pack(side="left", padx=5, pady=10)
-            ctk.CTkButton(self.actions_frame, text="Delete", corner_radius=0, width=80, fg_color=self.danger_red, command=self.action_delete_selected).pack(side="left", padx=5, pady=10)
 
     # --- SELECTION & LIST LOGIC ---
     def toggle_select_all(self):
@@ -174,6 +169,10 @@ class TempApp(ctk.CTk):
     def refresh_list(self):
         for widget in self.list_container.winfo_children():
             widget.destroy()
+        
+        if self.current_tab == "settings":
+            self.build_settings_view()
+            return
 
         self.row_checkboxes.clear()
         self.select_all_var.set(0) # Reset master checkbox on refresh
@@ -278,13 +277,11 @@ class TempApp(ctk.CTk):
         self.selected_files.clear()
         self.refresh_list()
 
-    def action_apply_tag(self):
+    def action_update_tags(self):
+        """Applies or changes tags for all selected files, cleaning spaces in process."""
         tag = self.tag_var.get()
         for path in list(self.selected_files):
-            p = Path(path)
-            if p.exists():
-                new_name = f"{p.stem} {tag}{p.suffix}"
-                p.rename(p.parent / new_name)
+            self.core.update_file_tag(path, tag)
         self.selected_files.clear()
         self.refresh_list()
 
@@ -327,12 +324,6 @@ class TempApp(ctk.CTk):
         self.after(0, self.deiconify) # Bezpieczne przywrócenie okna Tkinter
         self.after(0, self.refresh_list) # Odświeżamy listę przy pokazaniu
 
-    def action_remove_tags(self):
-        """Removes tags from all selected files in Managed tab."""
-        for path in list(self.selected_files):
-            self.core.remove_tag(path)
-        self.selected_files.clear()
-        self.refresh_list()
 
     def quit_app(self, icon=None, item=None):
         if hasattr(self, 'tray_icon'):
@@ -340,3 +331,32 @@ class TempApp(ctk.CTk):
         self.destroy()
         os._exit(0) # Brutalne ubicie wszystkich wątków w tle
 
+    def build_settings_view(self):
+        """Renders the list of monitored folders with remove buttons."""
+        # Nagłówek sekcji
+        ctk.CTkLabel(self.list_container, text="Monitored Folders", font=("Segoe UI", 16, "bold")).pack(pady=(10, 20))
+
+        for folder in self.core.config["monitored_folders"]:
+            row = ctk.CTkFrame(self.list_container, fg_color=self.bg_row, corner_radius=0, height=40)
+            row.pack(fill="x", pady=1)
+            row.pack_propagate(False)
+
+            ctk.CTkLabel(row, text=folder, anchor="w", font=("Segoe UI", 12)).pack(side="left", padx=15)
+            
+            # Przycisk usuwania folderu
+            ctk.CTkButton(
+                row, text="Remove", width=60, height=24, fg_color=self.danger_red, corner_radius=0,
+                command=lambda f=folder: [self.core.remove_monitored_folder(f), self.refresh_list()]
+            ).pack(side="right", padx=10)
+
+        # Przycisk dodawania nowego folderu
+        ctk.CTkButton(
+            self.list_container, text="+ Add New Folder", fg_color=self.accent_blue, corner_radius=0,
+            command=self.action_add_folder_dialog
+        ).pack(pady=30)
+
+    def action_add_folder_dialog(self):
+        folder = filedialog.askdirectory()
+        if folder:
+            self.core.add_monitored_folder(folder)
+            self.refresh_list()

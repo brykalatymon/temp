@@ -117,18 +117,43 @@ class TempCore:
             return True
         return False
     
-    def remove_tag(self, file_path):
-        """Removes the {#} tag from the filename and renames it."""
+    def update_file_tag(self, file_path, new_tag_str):
         p = Path(file_path)
-        if not p.exists(): return False
+        if not p.exists(): return
         
-        # Usuwamy wzorzec {#} oraz ewentualną spację przed nim
-        new_name = self.tag_pattern.sub("", p.name).replace("  ", " ").strip()
+        # 1. Czyszczenie nazwy
+        clean_stem = self.tag_pattern.sub("", p.stem)
+        clean_stem = " ".join(clean_stem.split()).strip()
         
-        # Jeśli po usunięciu tagu nazwa pliku zaczynałaby się od kropki (pusty stem) 
-        # lub nic by nie zostało, lepiej nic nie robić.
-        if new_name == p.name: return False
-        
+        # 2. Budowanie nowej nazwy
+        if new_tag_str == "{0}":
+            new_name = f"{clean_stem}{p.suffix}"
+        else:
+            new_name = f"{clean_stem} {new_tag_str}{p.suffix}"
+            
         new_path = p.parent / new_name
+        
+        # 3. Zmiana nazwy
         p.rename(new_path)
-        return True
+        
+        # --- NOWA LOGIKA: Aktualizacja daty modyfikacji ---
+        # Ustawia czas modyfikacji na "teraz"
+        os.utime(new_path, None) 
+        
+        return str(new_path)
+    
+    def add_monitored_folder(self, folder_path):
+        """Adds a new folder to monitoring list if it's not already there."""
+        if folder_path not in self.config["monitored_folders"]:
+            self.config["monitored_folders"].append(folder_path)
+            self.save_config()
+            return True
+        return False
+
+    def remove_monitored_folder(self, folder_path):
+        """Removes a folder from monitoring list."""
+        if folder_path in self.config["monitored_folders"]:
+            self.config["monitored_folders"].remove(folder_path)
+            self.save_config()
+            return True
+        return False
