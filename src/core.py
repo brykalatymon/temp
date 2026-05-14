@@ -116,3 +116,19 @@ class TempCore:
             send2trash(str(p))
             return True
         return False
+    
+    def remove_tag(self, file_path):
+        """Removes the {#} tag from the filename and renames it."""
+        p = Path(file_path)
+        if not p.exists(): return False
+        
+        # Usuwamy wzorzec {#} oraz ewentualną spację przed nim
+        new_name = self.tag_pattern.sub("", p.name).replace("  ", " ").strip()
+        
+        # Jeśli po usunięciu tagu nazwa pliku zaczynałaby się od kropki (pusty stem) 
+        # lub nic by nie zostało, lepiej nic nie robić.
+        if new_name == p.name: return False
+        
+        new_path = p.parent / new_name
+        p.rename(new_path)
+        return True

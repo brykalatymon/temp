@@ -148,6 +148,16 @@ class TempApp(ctk.CTk):
             ctk.CTkButton(self.actions_frame, text="Restore", corner_radius=0, width=100, fg_color="#00C851", hover_color="#007E33", command=self.action_restore_selected).pack(side="left", padx=5, pady=10)
             ctk.CTkButton(self.actions_frame, text="Delete", corner_radius=0, width=100, fg_color=self.danger_red, command=self.action_delete_selected).pack(side="left", padx=5, pady=10)
 
+        elif self.current_tab == "managed":
+            # NOWY PRZYCISK: Remove Tag
+            ctk.CTkButton(
+                self.actions_frame, text="Remove Tag", corner_radius=0, width=100, 
+                fg_color=self.accent_blue, command=self.action_remove_tags
+            ).pack(side="left", padx=5, pady=10)
+            
+            ctk.CTkButton(self.actions_frame, text="Quarantine", corner_radius=0, width=100, fg_color="#444", command=self.action_quarantine_selected).pack(side="left", padx=5, pady=10)
+            ctk.CTkButton(self.actions_frame, text="Delete", corner_radius=0, width=80, fg_color=self.danger_red, command=self.action_delete_selected).pack(side="left", padx=5, pady=10)
+
     # --- SELECTION & LIST LOGIC ---
     def toggle_select_all(self):
         is_selected = self.select_all_var.get() == 1
@@ -317,14 +327,16 @@ class TempApp(ctk.CTk):
         self.after(0, self.deiconify) # Bezpieczne przywrócenie okna Tkinter
         self.after(0, self.refresh_list) # Odświeżamy listę przy pokazaniu
 
+    def action_remove_tags(self):
+        """Removes tags from all selected files in Managed tab."""
+        for path in list(self.selected_files):
+            self.core.remove_tag(path)
+        self.selected_files.clear()
+        self.refresh_list()
+
     def quit_app(self, icon=None, item=None):
         if hasattr(self, 'tray_icon'):
             self.tray_icon.stop()
         self.destroy()
         os._exit(0) # Brutalne ubicie wszystkich wątków w tle
 
-if __name__ == "__main__":
-    # Sprawdzanie argumentu startowego (np. z autostartu Windows)
-    silent = "--silent" in sys.argv
-    app = TempApp(silent_start=silent)
-    app.mainloop()
