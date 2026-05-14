@@ -1,0 +1,26 @@
+# Python - pliki tymczasowe kompilatora
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Środowisko wirtualne (bardzo ważne!)
+venv/
+ENV/
+env/
+
+# Konfiguracja IDE
+.vscode/
+.idea/
+
+# DANE APLIKACJI (To, o co pytasz)
+# Jeśli testujesz kwarantannę w folderze projektu:
+quarantine/
+config.json
+
+# Logi i bazy danych
+*.log
+*.db
+
+# Pliki systemowe
+Thumbs.db
+.DS_Store
