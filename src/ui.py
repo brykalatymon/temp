@@ -212,6 +212,8 @@ class TempApp(ctk.CTk):
         row.pack_propagate(False)
 
         chk_var = ctk.IntVar(value=1 if file_info['full_path'] in self.selected_files else 0)
+        
+        # Akcja 1: Zaznaczanie (pojedyncze kliknięcie)
         def toggle(e=None):
             p = file_info['full_path']
             if p in self.selected_files: 
@@ -225,6 +227,13 @@ class TempApp(ctk.CTk):
                 self.select_all_var.set(1)
             else:
                 self.select_all_var.set(0)
+
+        # Akcja 2: Otwieranie pliku (podwójne kliknięcie)
+        def open_file_action(e=None):
+            try:
+                os.startfile(file_info['full_path'])
+            except Exception as ex:
+                print(f"Nie można otworzyć pliku: {ex}")
         
         chk = ctk.CTkCheckBox(row, text="", width=30, corner_radius=0, checkbox_width=18, checkbox_height=18, 
                               fg_color=self.accent_blue, hover_color="#005A9E", variable=chk_var, command=toggle)
@@ -249,10 +258,17 @@ class TempApp(ctk.CTk):
         lbl_d = ctk.CTkLabel(row, text=det, text_color=self.text_dim, anchor="w", cursor="hand2")
         lbl_d.pack(side="left", padx=10)
         
+        # Bindowanie pojedynczego kliknięcia
         row.bind("<Button-1>", toggle)
         lbl_n.bind("<Button-1>", toggle)
         lbl_s.bind("<Button-1>", toggle)
         lbl_d.bind("<Button-1>", toggle)
+
+        # Bindowanie podwójnego kliknięcia
+        row.bind("<Double-Button-1>", open_file_action)
+        lbl_n.bind("<Double-Button-1>", open_file_action)
+        lbl_s.bind("<Double-Button-1>", open_file_action)
+        lbl_d.bind("<Double-Button-1>", open_file_action)
 
     def action_add_folder_dialog(self):
         folder = filedialog.askdirectory()
